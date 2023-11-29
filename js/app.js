@@ -1,12 +1,19 @@
+document.addEventListener('DOMContentLoaded', iniciarApp);
 function iniciarApp() {
     const selectCategorias = document.querySelector('#categorias');
     const resultado = document.querySelector('#resultado');
     const modal = new bootstrap.Modal('#modal', {});
-    selectCategorias.addEventListener('change', seleccionarCategoria)
 
+    if (!seleccionarCategoria) {
+        selectCategorias.addEventListener('change', seleccionarCategoria);
 
+    }
 
-    obtenerCategorias();
+    const favoritosDiv = document.querySelector('.favoritos');
+    if (favoritosDiv) {
+        obtenerFavoritos();
+    }
+
     /**
      * Api para obtener todas las categorias 
      */
@@ -67,8 +74,8 @@ function iniciarApp() {
 
             const recetaImagen = document.createElement('IMG');
             recetaImagen.classList.add('card-img-top');
-            recetaImagen.alt = `Imagen de la receta ${strMeal}`;
-            recetaImagen.src = strMealThumb;
+            recetaImagen.alt = `Imagen de la receta ${strMeal ?? e.titulo}`;
+            recetaImagen.src = strMealThumb ?? e.imagen;
 
 
             const recetaCardBody = document.createElement('DIV');
@@ -77,7 +84,7 @@ function iniciarApp() {
 
             const recetaHeading = document.createElement('H3');
             recetaHeading.classList.add('card-title', 'mb-3');
-            recetaHeading.textContent = strMeal;
+            recetaHeading.textContent = strMeal ?? e.titulo;
 
 
             const recetaButton = document.createElement('BUTTON');
@@ -86,7 +93,7 @@ function iniciarApp() {
             // recetaButton.dataset.bsTarget = '#modal';
             // recetaButton.dataset.bsToggle = 'modal';
             recetaButton.onclick = function () {
-                seleccionarReceta(idMeal);
+                seleccionarReceta(idMeal ?? e.id);
             }
 
             //Inyectar en html
@@ -103,6 +110,32 @@ function iniciarApp() {
 
 
         })
+    }
+
+
+
+    function mostrarToat(mensaje) {
+        const toastDiv = document.querySelector('#toast');
+        const toastBody = document.querySelector('.toast-body');
+        const toast = new bootstrap.Toast(toastDiv);
+        toastBody.textContent = mensaje;
+        toast.show();
+    }
+
+
+
+    function obtenerFavoritos() {
+
+
+        const favoritos = JSON.parse(localStorage.getItem('favoritos')) ?? [];
+        if (favoritos.length) {
+            mostrarRecetas(favoritos);
+            return
+        }
+        const noFavoritos = document.createElement('P');
+        noFavoritos.textContent = 'No hay favoritos aun';
+        noFavoritos.classList.add('fs-4', 'text-center', 'font-bold', 'mt-5');
+        resultado.appendChild(noFavoritos);
     }
 
     /**
@@ -127,22 +160,111 @@ function iniciarApp() {
     }
 
 
+
+    /**
+     * Destructuring a la receta traida del api y creacion de los elementos en html 
+     * @param {receta} receta 
+     */
     function mostrarModal(receta) {
         const { idMeal, strInstructions, strMeal, strMealThumb } = receta;
         const modalTitle = document.querySelector('.modal .modal-title');
         const modalBody = document.querySelector('.modal .modal-body');
         modalTitle.textContent = strMeal;
         modalBody.innerHTML = `
-        <img class='img-fluid' src="${strMealThumb}"/>
-        <h3 class="my-3">Instrucciones</h3>
-        <p class="">${strInstructions}</p>
+            <img class='img-fluid' src="${strMealThumb}"/>
+            <h3 class="my-3">Instrucciones</h3>
+            <p class="">${strInstructions}</p>
+            <h3 class='my-3'>Ingredientes y Cantidades</h3>
+        `;
 
-        `
+
+        //mostrar cantidades e ingredientes 
+        const listGroup = document.createElement('UL');
+        listGroup.classList.add('list-group');
+
+        for (let i = 0; i <= 20; i++) {
+            if (receta[`strIngredient${i}`]) {
+                const ingrediente = receta[`strIngredient${i}`];
+                const cantidad = receta[`strMeasure${i}`];
+
+                const ingredienteLI = document.createElement('LI');
+                ingredienteLI.classList.add('list-group-item');
+                ingredienteLI.textContent = `${ingrediente} - ${cantidad}`;
+
+                listGroup.appendChild(ingredienteLI);
+            }
+        }
+        modalBody.appendChild(listGroup);
 
 
+        //botones del modal
+        crearBotonmodal(receta);
 
         modal.show();
     }
+
+    /**
+     * Crear botones de los modales 
+     */
+    function crearBotonmodal(receta) {
+        const { idMeal, strInstructions, strMeal, strMealThumb } = receta;
+        const modalFooter = document.querySelector('.modal-footer');
+        limpiarHTML(modalFooter);
+        const btnFavorito = document.createElement('BUTTON');
+        btnFavorito.classList.add('btn', 'btn-danger', 'col', 'btnM');
+        btnFavorito.textContent = existeStorage(idMeal) ? 'Eliminar favorito' : 'Guardar Favorito ';
+
+        //Almacenar en local
+        btnFavorito.onclick = function () {
+            if (!existeStorage(idMeal)) {
+                agregarFavotito(idMeal, strMeal, strMealThumb, strInstructions);
+                btnFavorito.textContent = 'Eliminar Favorito'
+                mostrarToat('Agregado correctamente');
+            } else {
+                eliminarFavorito(idMeal);
+                btnFavorito.textContent = 'Guardar Favorito';
+                mostrarToat('Eliminado Correctamente');
+                return;
+
+            }
+        };
+
+
+
+        const btnCerrar = document.createElement('BUTTON');
+        btnCerrar.classList.add('btn', 'btn-secondary', 'col', 'btnM');
+        btnCerrar.textContent = 'Cerrar';
+        btnCerrar.onclick = () => modal.hide();
+
+        modalFooter.appendChild(btnFavorito);
+        modalFooter.appendChild(btnCerrar);
+
+    }
+
+    function agregarFavotito(id, titulo, imagen, instrucciones) {
+        const receta = {
+            id, titulo, imagen, instrucciones
+        }
+
+        const favoritos = JSON.parse(localStorage.getItem('favoritos')) ?? [];
+        localStorage.setItem('favoritos', JSON.stringify([...favoritos, receta]));
+
+
+    }
+
+
+    function eliminarFavorito(id) {
+        const favoritos = JSON.parse(localStorage.getItem('favoritos')) ?? [];
+        const nuevosFavoritos = favoritos.filter(favorito => favorito.id !== id);
+        localStorage.setItem('favoritos', JSON.stringify(nuevosFavoritos));
+    }
+
+    function existeStorage(id) {
+        const favoritos = JSON.parse(localStorage.getItem('favoritos')) ?? [];
+        return favoritos.some(favorito => favorito.id === id);
+
+    }
+
+
 }
 
-document.addEventListener('DOMContentLoaded', iniciarApp);
